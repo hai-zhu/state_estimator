@@ -1,0 +1,17 @@
+<launch>
+
+  	<node 	pkg="state_estimator"
+    		type="mocap_state_kalman_filter_node"
+    		name="mocap_state_kalman_filter_node_0"
+    		respawn="false"
+    		launch-prefix=""
+    		required="true"
+			output='screen'>
+
+			<rosparam file="$(find state_estimator)/config/nokov_kf.yaml" />
+		
+			<remap from="/mocap_object/pose" to="/vrpn_client_node/Tracker0/pose"/>
+			<remap from="/mocap_object/state_odom_estimation" to="/Tracker0/state_odom_estimation"/>
+  	</node>
+
+</launch>

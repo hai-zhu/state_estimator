@@ -1,0 +1,8 @@
+# measurement unit transform, factor to standard
+pos_factor_to_meter: 0.001    # nokov generate mm by default
+
+# KF noise matrix setup
+Q_acc: 100.0
+Q_rot_acc: 100.0
+R_pos: 0.005
+R_rpy: 0.001
