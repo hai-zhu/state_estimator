@@ -30,9 +30,9 @@ Mocap_State_KF::Mocap_State_KF(ros::NodeHandle nh, KF_Param kf_param) : nh_(nh),
 
     // Other info by default
     this->kf_param_.pos_factor_to_meter = 0.001;
-    this->kf_param_.Q_acc = 100.0;
-    this->kf_param_.Q_rot_acc = 100.0;
-    this->kf_param_.R_pos = 0.005;
+    this->kf_param_.Q_acc = 10.0;
+    this->kf_param_.Q_rot_acc = 10.0;
+    this->kf_param_.R_pos = 0.001;
     this->kf_param_.R_rpy = 0.001;
 }
 

@@ -2,7 +2,7 @@
 pos_factor_to_meter: 0.001    # nokov generate mm by default
 
 # KF noise matrix setup
-Q_acc: 100.0
-Q_rot_acc: 100.0
-R_pos: 0.005
-R_rpy: 0.001
+Q_acc: 10.0           # m/s^2
+Q_rot_acc: 10.0       # rad/s^2
+R_pos: 0.001          # m
+R_rpy: 0.001          # rad
