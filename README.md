@@ -14,5 +14,5 @@ source devel/setup.bash
 - Feed the `.yaml` file to the `.launch` file and check the `remap` lines to make topic names matched.
 - Launch the node
   ```cmd
-  roslaunch state_estimation mocap_state_kf_multiple.launch
+  roslaunch state_estimator mocap_state_kf_multiple.launch
   ```
