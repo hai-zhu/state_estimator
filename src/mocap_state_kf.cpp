@@ -17,23 +17,18 @@ Mocap_State_KF::Mocap_State_KF(ros::NodeHandle nh, KF_Param kf_param) : nh_(nh),
     this->pos_measured_.setZero();
     this->rpy_measured_.setZero();
     this->pos_vel_est_.setZero();
-    this->pos_vel_cov_est_.setZero();
     this->rpy_rate_est_.setZero();
-    this->rpy_rate_cov_est_.setZero();
     this->time_stamp_print_ = ros::Time::now();
     this->time_stamp_previous_ = ros::Time::now();
     this->time_stamp_now_ = ros::Time::now();
     this->dt_ = 1.0 / 60.0;
 
+    this->pos_vel_cov_est_.setZero();
+    this->rpy_rate_cov_est_.setZero();
+
     this->flag_first_pose_received_ = false;
     this->flag_later_pose_received_ = false;
 
-    // Other info by default
-    this->kf_param_.pos_factor_to_meter = 0.001;
-    this->kf_param_.Q_acc = 10.0;
-    this->kf_param_.Q_rot_acc = 10.0;
-    this->kf_param_.R_pos = 0.001;
-    this->kf_param_.R_rpy = 0.001;
 }
 
 Mocap_State_KF::~Mocap_State_KF()
@@ -52,7 +47,6 @@ void Mocap_State_KF::initialize_subscribers()
 {
     ROS_INFO("Initializing subscribers");
     this->mocap_pose_sub_ = this->nh_.subscribe("/mocap_object/pose", 1, &Mocap_State_KF::callback_mocap_state_kf, this);
-    // this->mocap_pose_sub_ = this->nh_.subscribe("/vrpn_client_node/Tracker0/pose", 1, &Mocap_State_KF::callback_mocap_state_kf, this);
 }
 
 // Callback
@@ -86,7 +80,7 @@ void Mocap_State_KF::callback_mocap_state_kf(const geometry_msgs::PoseStamped &m
         // initialize pos vel kf
         Eigen::Matrix<double, 6, 1> xk;
         xk << pos_measured_[0], pos_measured_[1], pos_measured_[2], 0.0, 0.0, 0.0;
-        double P_pos = 0.01;
+        double P_pos = 0.1;
         double P_vel = 1.0;
         Eigen::Matrix<double, 6, 1> P_vec;
         P_vec << P_pos, P_pos, P_pos, P_vel, P_vel, P_vel;
@@ -94,7 +88,7 @@ void Mocap_State_KF::callback_mocap_state_kf(const geometry_msgs::PoseStamped &m
         this->pos_vel_kf_.initialize_kf(xk, Pk);
         // initialize rpy rate kf
         xk << rpy_measured_[0], rpy_measured_[1], rpy_measured_[2], 0.0, 0.0, 0.0;
-        double P_rpy = 0.01;
+        double P_rpy = 0.1;
         double P_rate = 1.0;
         P_vec << P_rpy, P_rpy, P_rpy, P_rate, P_rate, P_rate;
         Pk = P_vec.asDiagonal();
@@ -116,28 +110,51 @@ void Mocap_State_KF::callback_mocap_state_kf(const geometry_msgs::PoseStamped &m
         double Q_acc = this->kf_param_.Q_acc;
         double Q_pos = 0.5 * Q_acc * this->dt_ * this->dt_;
         double Q_vel = Q_acc * this->dt_;
-        Q_vec << Q_pos * Q_pos, Q_pos * Q_pos, Q_pos * Q_pos, Q_vel * Q_vel, Q_vel * Q_vel, Q_vel * Q_vel;
+        Q_vec << Q_pos, Q_pos, Q_pos, Q_vel, Q_vel, Q_vel;
         Qk = Q_vec.asDiagonal();
         double R_pos = this->kf_param_.R_pos;
         R_vec << R_pos * R_pos, R_pos * R_pos, R_pos * R_pos;
         Rk = R_vec.asDiagonal();
         this->pos_vel_kf_.kf_update(this->dt_, uk, zk, Qk, Rk);
-        this->pos_vel_est_ = pos_vel_kf_.xk_est_;
-        this->pos_vel_cov_est_ = pos_vel_kf_.Pk_est_;
+        Eigen::Matrix<double, 6, 1> pos_vel_est_kf = this->pos_vel_kf_.xk_est_;
+        Eigen::Matrix<double, 6, 6> pos_vel_cov_est_kf = this->pos_vel_kf_.Pk_est_;
         // rpy rate kf
         uk << 0.0, 0.0, 0.0;
         zk = this->rpy_measured_;
         double Q_rot_acc = this->kf_param_.Q_rot_acc;
         double Q_rpy = 0.5 * Q_rot_acc * this->dt_ * this->dt_;
         double Q_rate = Q_rot_acc * this->dt_;
-        Q_vec << Q_rpy * Q_rpy, Q_rpy * Q_rpy, Q_rpy * Q_rpy, Q_rate * Q_rate, Q_rate * Q_rate, Q_rate * Q_rate;
+        Q_vec << Q_rpy, Q_rpy, Q_rpy, Q_rate, Q_rate, Q_rate;
         Qk = Q_vec.asDiagonal();
         double R_rpy = this->kf_param_.R_rpy;
         R_vec << R_rpy * R_rpy, R_rpy * R_rpy, R_rpy * R_rpy;
         Rk = R_vec.asDiagonal();
         this->rpy_rate_kf_.kf_update(this->dt_, uk, zk, Qk, Rk);
-        this->rpy_rate_est_ = rpy_rate_kf_.xk_est_;
-        this->rpy_rate_cov_est_ = rpy_rate_kf_.Pk_est_;
+        Eigen::Matrix<double, 6, 1> rpy_rate_est_kf = this->rpy_rate_kf_.xk_est_;
+        Eigen::Matrix<double, 6, 6> rpy_rate_cov_est_kf = this->rpy_rate_kf_.Pk_est_;
+
+        // if there is any nan or inf
+        if (isnan(pos_vel_est_kf[0]) || isnan(pos_vel_est_kf[1]) || isnan(pos_vel_est_kf[2]) ||
+            isnan(pos_vel_est_kf[3]) || isnan(pos_vel_est_kf[4]) || isnan(pos_vel_est_kf[5]))
+        {
+            ROS_WARN("Nan detected in pos vel estimation! will not update the estimated value!");
+        }
+        else
+        {
+            this->pos_vel_est_ = pos_vel_est_kf; 
+            this->pos_vel_cov_est_ = pos_vel_cov_est_kf;
+        }
+        if (isnan(rpy_rate_est_kf[0]) || isnan(rpy_rate_est_kf[1]) || isnan(rpy_rate_est_kf[2]) ||
+            isnan(rpy_rate_est_kf[3]) || isnan(rpy_rate_est_kf[4]) || isnan(rpy_rate_est_kf[5]))
+        {
+            ROS_WARN("Nan detected in rpy rate! will not update the estimated value");
+
+        }
+        else
+        {
+            this->rpy_rate_est_ = rpy_rate_est_kf; 
+            this->rpy_rate_cov_est_ = rpy_rate_cov_est_kf;
+        }
 
         // publish estimation results
         nav_msgs::Odometry msg_pub;
